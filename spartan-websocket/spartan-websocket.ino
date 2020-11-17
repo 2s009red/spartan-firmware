@@ -2,9 +2,9 @@
 #include <ESP8266WiFi.h>
 #include <WebSocketsClient.h>
 
-#include "I2Cdev.h"
-#include "MPU6050.h"
 #include "Wire.h"
+#include <MPU6050_light.h>
+
 
 #include "MotionPlanner.h"
 
@@ -32,7 +32,7 @@ uint32_t current_strike_delay;
 
 bool extended = false;
 
-MPU6050 accelerometer;
+MPU6050 mpu(Wire);
 MotionPlanner motionPlanner;
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
@@ -99,16 +99,17 @@ void setup() {
     pinMode(SERVO_PIN, OUTPUT);
     
 	  Serial.begin(115200);
-
 	  Serial.setDebugOutput(true);
 
     // join I2C bus (I2Cdev library doesn't do this automatically)
     Wire.begin();
-    accelerometer.initialize();
+    int status = mpu.begin();
 
-    if (accelerometer.testConnection()) {
-        Serial.println("good");
-    }
+    if (status) ESP.restart(); // couldn't connect to MPU
+
+    Serial.println(F("Calculating offsets, do not move MPU6050"));
+    delay(1000);
+    mpu.calcOffsets(true,true); // gyro and accelero
  
     WiFi.mode(WIFI_STA);
     WiFi.begin("MIT", "");
@@ -131,8 +132,6 @@ void setup() {
     motionPlanner.clear();
     motionPlanner.attachServo(SERVO_PIN);
 }
-
-int last_move_millis = 0;
 
 void loop() {
     webSocket.loop();
