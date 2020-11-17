@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #include <ESP8266WiFi.h>
 #include <WebSocketsClient.h>
 
@@ -5,20 +6,23 @@
 #include "MPU6050.h"
 #include "Wire.h"
 
+#include "MotionPlanner.h"
+
 WebSocketsClient webSocket;
 
 #define USE_SERIAL Serial
 
-const int WITHDRAW_DELAY = 200;
+//const int WITHDRAW_DELAY = 200;
 
 const int MAX_EXTENSION = 180;
 
-int extension = 180;  // degrees of furthest extension
-//int frequency = 1000;  // delay, in ms, between punches
+int extension = MAX_EXTENSION;  // degrees of furthest extension
+
 uint32_t spar_delay_minimum = 2000;  // delay, in ms, between punches
 uint32_t spar_delay_maximum = 4000;  // delay, in ms, between punches
 
 bool sparring = false;  // are we sparring right now?
+
 uint32_t last_punch_millis;
 
 const uint8_t SERVO_PIN = 14;
@@ -28,53 +32,27 @@ uint32_t current_strike_delay;
 
 bool extended = false;
 
-// TODO clean this file up
-
 MPU6050 accelerometer;
-
-/*
-struct MotionPlan {
-    uint32_t destination,
-    uint32_t timestamp
-};
-
-// TODO enforce singleton
-class MotionController {
-  private:
-    bool isSparring;
-    uint32_t motionPlanLength;
-    MotionPlan motions[128];
-
-  public:
-    MotionController() {
-        this->isSparring = false;
-    }
-
-    void updateMotion() {
-        
-    }
-
-    void addMotion() {
-        
-    }
-} motionController;
-*/
+MotionPlanner motionPlanner;
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
-
 	switch(type) {
 		case WStype_TEXT:
             switch(payload[0]) {
                 case 'p':
-                  servo_write(extension);
+                  motionPlanner.clear();
+                  motionPlanner.addMotion(millis(), extension);
+                  motionPlanner.addMotion(millis() + WITHDRAW_DELAY, 0);
+
                   Serial.println("Punch");
                   Serial.println(extension);
                   last_punch_millis = millis();
                   break;
-                case 's':
+                case 's':   // TODO speed
                   Serial.println(atoi((const char*) payload + 1));
                   break;
                 case 'e':   // extension
+                  // TODO we should have this update motionPlanner; right now, it only reads these values once, during startSparring
                   extension = atoi((const char*) payload + 1);
                   break;
                 case 'f':   // frequency
@@ -87,24 +65,20 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                 case 'r':
                   // Reset or pReamble--stop all punches, reset to 0, and get ready to start sparring mode
                   break;
+                case '0':
+                  motionPlanner.stopSparring();
+                  motionPlanner.clearAndReturnToZero();
+                  break;
                 case '1':
                 // reset to 0
-                  servo_write(0);
-                  last_punch_millis = millis();
-                  sparring = true;
-                  current_strike_delay = random(spar_delay_minimum, spar_delay_maximum);
-                  break;
-                case '0':
-                  servo_write(0);
-                  sparring = false;
-                  last_punch_millis = 0;    // TODO kinda a hack
+                  motionPlanner.clearAndReturnToZero();
+                  motionPlanner.startSparring(spar_delay_minimum, spar_delay_maximum, extension);
                   break;
                 case '2':
-                  extended = true;
+                  motionPlanner.addMotion(millis(), extension);
                   break;
                 case '3':
-                  extended = false;
-                  servo_write(0);
+                  motionPlanner.clear();
                   break;
             }
 			break;
@@ -118,7 +92,6 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     case WStype_CONNECTED:
 			break;
 	}
-
 }
 
 
@@ -138,7 +111,7 @@ void setup() {
     }
  
     WiFi.mode(WIFI_STA);
-    WiFi.begin("MIT GUEST", "");
+    WiFi.begin("MIT", "");
 
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
         Serial.println("Connection Failed! Rebooting...");
@@ -154,45 +127,16 @@ void setup() {
 
     // set up PWM
     analogWriteFreq(SERVO_FREQUENCY);
+
+    motionPlanner.clear();
+    motionPlanner.attachServo(SERVO_PIN);
 }
 
 int last_move_millis = 0;
 
-void servo_write(int pos) {
-    uint32_t pwm_value = map(pos, 0, 180, 699, 504);
-    analogWrite(SERVO_PIN, pwm_value);
-}
-
-// TODO make a motion controller class
-// allow user to schedule a punch
-// allows user to cancel all scheduled punches
 void loop() {
     webSocket.loop();
-    
+//    const uint32_t SPEED_DELAY = 20; // smear withdraw over this time period so we get slower motion
 
-    uint32_t milliseconds_passed = millis() - last_punch_millis;
-    const uint32_t SPEED_DELAY = 20; // smear withdraw over this time period so we get slower motion
-
-    if (extended) {
-        servo_write(180);
-    } else if (!sparring) {
-        if (milliseconds_passed < WITHDRAW_DELAY) {
-            servo_write(extension);
-         } else if (milliseconds_passed < WITHDRAW_DELAY + SPEED_DELAY) {   
-            // FIXME wtf this expression
-            servo_write(extension - extension * (milliseconds_passed - WITHDRAW_DELAY) / SPEED_DELAY);
-        } else {
-            servo_write(0);
-        }
-    } else {
-        if (milliseconds_passed < WITHDRAW_DELAY) {
-            servo_write(extension);
-        } else if (milliseconds_passed < WITHDRAW_DELAY + current_strike_delay) {
-            servo_write(extension - extension * (milliseconds_passed - WITHDRAW_DELAY) / SPEED_DELAY);
-        } else {
-            servo_write(0);
-            last_punch_millis = millis();
-            current_strike_delay = random(spar_delay_minimum, spar_delay_maximum);
-        }
-    }
+    motionPlanner.update();
 }
