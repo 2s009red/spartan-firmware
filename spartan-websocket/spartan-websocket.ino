@@ -5,6 +5,7 @@
 #include "Wire.h"
 #include <MPU6050_light.h>
 
+#include <RunningMedian.h>
 
 #include "MotionPlanner.h"
 
@@ -31,6 +32,7 @@ const uint32_t SERVO_FREQUENCY = 333;
 uint32_t current_strike_delay;
 
 bool extended = false;
+bool punchStart = false;
 
 MPU6050 mpu(Wire);
 MotionPlanner motionPlanner;
@@ -66,19 +68,19 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
                   // Reset or pReamble--stop all punches, reset to 0, and get ready to start sparring mode
                   break;
                 case '0':
+                  punchStart = false;
                   motionPlanner.stopSparring();
                   motionPlanner.clearAndReturnToZero();
                   break;
                 case '1':
                 // reset to 0
-                  motionPlanner.clearAndReturnToZero();
-                  motionPlanner.startSparring(spar_delay_minimum, spar_delay_maximum, extension);
+                  punchStart = true;
                   break;
                 case '2':
                   motionPlanner.addMotion(millis(), extension);
                   break;
                 case '3':
-                  motionPlanner.clear();
+                  motionPlanner.clearAndReturnToZero();
                   break;
             }
 			break;
@@ -112,7 +114,7 @@ void setup() {
     mpu.calcOffsets(true,true); // gyro and accelero
  
     WiFi.mode(WIFI_STA);
-    WiFi.begin("MIT", "");
+    WiFi.begin("MIT GUEST", "");
 
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
         Serial.println("Connection Failed! Rebooting...");
@@ -133,9 +135,42 @@ void setup() {
     motionPlanner.attachServo(SERVO_PIN);
 }
 
+const uint32_t ACCEL_UPDATE_INTERVAL = 3000;  // every 3ms
+//const uint32_t WEBSOCKET_PUNCH_MESSAGE_INTERVAL = 100;  // every 3ms
+const size_t ACCEL_BUFFER_SIZE = 5;
+
+uint32_t lastAccelUpdate = 0;
+uint32_t lastPunchMessage = 0;
+
+RunningMedian medianFilter = RunningMedian(ACCEL_BUFFER_SIZE);
+
+float getAccelMagnitude() {
+    return sqrt(sq(mpu.getAccX()) + sq(mpu.getAccY()) + sq(mpu.getAccZ()));
+}
+
 void loop() {
     webSocket.loop();
-//    const uint32_t SPEED_DELAY = 20; // smear withdraw over this time period so we get slower motion
-
     motionPlanner.update();
+//
+//    int microseconds = micros();
+//
+//    if (microseconds - lastAccelUpdate >= ACCEL_UPDATE_INTERVAL) {
+////        Serial.println("WTFG");
+        mpu.update();
+        medianFilter.add(getAccelMagnitude());
+
+if (punchStart && !motionPlanner.isSparring() && abs(medianFilter.getMedian() - 1.0) > 0.1) {
+                  motionPlanner.clearAndReturnToZero();
+                  motionPlanner.startSparring(spar_delay_minimum, spar_delay_maximum, extension);
+                  Serial.println("Start!");
+}
+//        if (millis() - lastPunchMessage >= WEBSOCKET_PUNCH_MESSAGE_INTERVAL) {
+//        if (millis() - lastPunchMessage >= WEBSOCKET_PUNCH_MESSAGE_INTERVAL && abs(medianFilter.getMedian() - 1.0) > 0.1) {
+//            Serial.println("punched");
+//            webSocket.sendTXT("punched");
+//            lastPunchMessage = millis();
+//        }
+
+//        lastAccelUpdate = microseconds;
+//    }
 }

@@ -28,6 +28,7 @@ class MotionPlanner {
     void addMotion(uint32_t timestamp, uint32_t destination);
     void startSparring(uint32_t spar_delay_minimum, uint32_t spar_delay_maximum, uint32_t extension); // TODO 
     void stopSparring();
+    bool isSparring();
 
   private:
     Motion _motions[MAX_MOTION_SIZE];
