@@ -1,5 +1,5 @@
 #include "Arduino.h"
-#include <ESP8266WiFi.h>
+#include <WiFiMulti.h>
 #include <WebSocketsClient.h>
 
 #include "Wire.h"
@@ -9,6 +9,7 @@
 
 #include "MotionPlanner.h"
 
+WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
 
 #define USE_SERIAL Serial
