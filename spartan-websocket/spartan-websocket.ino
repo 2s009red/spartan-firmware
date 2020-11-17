@@ -113,14 +113,11 @@ void setup() {
     delay(1000);
     mpu.calcOffsets(true,true); // gyro and accelero
  
-    WiFi.mode(WIFI_STA);
-    WiFi.begin("MIT GUEST", "");
-
-    while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-        Serial.println("Connection Failed! Rebooting...");
-        delay(5000);
-        ESP.restart();
-  	}
+    WiFiMulti.addAP("MIT GUEST", "");
+  
+    while(WiFiMulti.run() != WL_CONNECTED) {
+      delay(100);
+    }
 
     Serial.println("Connected to WiFi");
 
@@ -129,10 +126,12 @@ void setup() {
   	webSocket.setReconnectInterval(5000);
 
     // set up PWM
-    analogWriteFreq(SERVO_FREQUENCY);
+    const int freq = 333;
+    const int ledChannel = 0;
+    const int resolution = 10;
 
-    motionPlanner.clear();
-    motionPlanner.attachServo(SERVO_PIN);
+    ledcSetup(ledChannel, freq, resolution);
+    ledcAttachPin(SERVO_PIN, ledChannel);
 }
 
 const size_t ACCEL_BUFFER_SIZE = 5;

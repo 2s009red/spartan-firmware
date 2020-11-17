@@ -36,7 +36,7 @@ void MotionPlanner::update() {
 
 void MotionPlanner::_servoWrite(uint32_t _position) {
     uint32_t pwm_value = map(_position, 0, 180, 699, 504);
-    analogWrite(_pin, pwm_value);
+    ledcWrite(0, pwm_value);
 
     return;
 }
