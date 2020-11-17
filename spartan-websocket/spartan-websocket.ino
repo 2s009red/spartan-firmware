@@ -135,8 +135,6 @@ void setup() {
     motionPlanner.attachServo(SERVO_PIN);
 }
 
-const uint32_t ACCEL_UPDATE_INTERVAL = 3000;  // every 3ms
-//const uint32_t WEBSOCKET_PUNCH_MESSAGE_INTERVAL = 100;  // every 3ms
 const size_t ACCEL_BUFFER_SIZE = 5;
 
 uint32_t lastAccelUpdate = 0;
@@ -151,26 +149,13 @@ float getAccelMagnitude() {
 void loop() {
     webSocket.loop();
     motionPlanner.update();
-//
-//    int microseconds = micros();
-//
-//    if (microseconds - lastAccelUpdate >= ACCEL_UPDATE_INTERVAL) {
-////        Serial.println("WTFG");
-        mpu.update();
-        medianFilter.add(getAccelMagnitude());
 
-if (punchStart && !motionPlanner.isSparring() && abs(medianFilter.getMedian() - 1.0) > 0.1) {
-                  motionPlanner.clearAndReturnToZero();
-                  motionPlanner.startSparring(spar_delay_minimum, spar_delay_maximum, extension);
-                  Serial.println("Start!");
-}
-//        if (millis() - lastPunchMessage >= WEBSOCKET_PUNCH_MESSAGE_INTERVAL) {
-//        if (millis() - lastPunchMessage >= WEBSOCKET_PUNCH_MESSAGE_INTERVAL && abs(medianFilter.getMedian() - 1.0) > 0.1) {
-//            Serial.println("punched");
-//            webSocket.sendTXT("punched");
-//            lastPunchMessage = millis();
-//        }
+    mpu.update();
+    medianFilter.add(getAccelMagnitude());
 
-//        lastAccelUpdate = microseconds;
-//    }
+    if (punchStart && !motionPlanner.isSparring() && abs(medianFilter.getMedian() - 1.0) > 0.1) {
+        motionPlanner.clearAndReturnToZero();
+        motionPlanner.startSparring(spar_delay_minimum, spar_delay_maximum, extension);
+        Serial.println("Start!");
+    }
 }
