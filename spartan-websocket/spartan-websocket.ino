@@ -11,10 +11,6 @@
 
 WebSocketsClient webSocket;
 
-#define USE_SERIAL Serial
-
-//const int WITHDRAW_DELAY = 200;
-
 const int MAX_EXTENSION = 180;
 
 int extension = MAX_EXTENSION;  // degrees of furthest extension
