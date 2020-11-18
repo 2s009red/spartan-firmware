@@ -27,7 +27,7 @@ bool sparring = false;  // are we sparring right now?
 
 uint32_t last_punch_millis;
 
-const uint8_t SERVO_PIN = 14;
+const uint8_t SERVO_PIN = 19;
 const uint32_t SERVO_FREQUENCY = 333;
 
 uint32_t current_strike_delay;
@@ -37,6 +37,18 @@ bool punchStart = false;
 
 MPU6050 mpu(Wire);
 MotionPlanner motionPlanner;
+
+void resetI2C() {
+	int i;
+	pinMode(22, OUTPUT);
+	for(i=0; i<16; i++) {
+		delayMicroseconds(10);
+		digitalWrite(22, HIGH);
+		delayMicroseconds(10);
+		digitalWrite(22, LOW);
+	}
+	digitalWrite(22, HIGH);
+}
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 	switch(type) {
